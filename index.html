@@ -529,10 +529,11 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px}
             <div class="field"><label>% Starter</label><input type="number" id="c-starter" value="10" oninput="calcF1()"></div>
             <div class="result-box" id="r-f1"></div>
           </div>
-          <div class="card"><div class="section-title">Carbonatation F2</div>
+          <div class="card"><div class="section-title">Carbonatation F2 + CO₂</div>
             <div class="field"><label>Volume (L)</label><input type="number" id="c-vol2" value="10" oninput="calcF2()"></div>
-            <div class="field"><label>Sucre F2 (g/L)</label><input type="number" id="c-sugar2" value="8" oninput="calcF2()"></div>
+            <div class="field"><label>Sucre ajouté F2 (g/L)</label><input type="number" id="c-sugar2" value="8" oninput="calcF2()"></div>
             <div class="field"><label>Bouteille</label><select id="c-bottle" onchange="calcF2()"><option value="330">330mL</option><option value="500" selected>500mL</option><option value="750">750mL</option><option value="1000">1L</option></select></div>
+            <div class="field"><label>Température F2 (°C)</label><input type="number" id="c-temp-f2" value="22" min="10" max="35" oninput="calcF2()"></div>
             <div class="result-box" id="r-f2"></div>
           </div>
           <div class="card"><div class="section-title">Analyse pH</div>
@@ -852,7 +853,7 @@ async function handleAuth() {
 }
 
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
-async function logout() { if(!confirm('Se déconnecter ?'))return; await sb.auth.signOut(); showLanding(); }
+async function logout() { if(!confirm("Se déconnecter ?"))return; await sb.auth.signOut(); location.reload(); }
 
 sb.auth.onAuthStateChange(async(event,session)=>{
   if(session?.user){
@@ -1183,7 +1184,41 @@ async function renderCharts(){
 }
 
 function calcF1(){const vol=+document.getElementById('c-vol').value||50,s=+document.getElementById('c-sugar').value||70,t=+document.getElementById('c-tea').value||5,st=+document.getElementById('c-starter').value||10;const sv=vol*st/100;document.getElementById('r-f1').innerHTML=`<div class="result-label">Pour ${vol}L</div><div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12px"><div style="color:#6b8c68">Eau de thé : <strong style="color:#e8f0e6">${(vol-sv).toFixed(1)} L</strong></div><div style="color:#6b8c68">Sucre : <strong style="color:#e8f0e6">${(s*vol/1000).toFixed(2)} kg</strong></div><div style="color:#6b8c68">Thé : <strong style="color:#e8f0e6">${(t*vol).toFixed(0)} g</strong></div><div style="color:#6b8c68">Starter : <strong style="color:#e8f0e6">${sv.toFixed(1)} L</strong></div><div style="color:#6b8c68">Durée : <strong style="color:#e8f0e6">7–14j · pH cible 3.0–3.5</strong></div></div>`;}
-function calcF2(){const vol=+document.getElementById('c-vol2').value||10,s=+document.getElementById('c-sugar2').value||8,bottle=+document.getElementById('c-bottle').value||500;const n=Math.floor(vol*1000/bottle);document.getElementById('r-f2').innerHTML=`<div class="result-label">Résultats F2</div><div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12px"><div style="color:#6b8c68">Bouteilles ${bottle}mL : <strong style="color:#e8f0e6">${n}</strong></div><div style="color:#6b8c68">Sucre total : <strong style="color:#e8f0e6">${(s*vol).toFixed(0)} g</strong></div><div style="color:#6b8c68">Sucre/bouteille : <strong style="color:#e8f0e6">${(s*bottle/1000).toFixed(1)} g</strong></div><div style="color:#6b8c68">Durée F2 : <strong style="color:#e8f0e6">3–5 jours à 22°C</strong></div></div>`;}
+function calcF2(){
+  const vol=+document.getElementById('c-vol2').value||10;
+  const s=+document.getElementById('c-sugar2').value||8;
+  const bottle=+document.getElementById('c-bottle').value||500;
+  const temp=+document.getElementById('c-temp-f2').value||22;
+  const n=Math.floor(vol*1000/bottle);
+  // CO2 estimation: 1g sucre produit ~0.49g CO2 = ~0.25L CO2 à pression atm
+  // En volume CO2 dissous: 1g/L sucre ≈ 0.5 vol CO2 (approximation brasserie)
+  const co2_vol = (s * 0.5).toFixed(1);
+  // Pression estimée en bouteille (bar): volumes CO2 * (T°C + 273) * 0.00123 - atmosphère
+  const pression = Math.max(0, (s * 0.5 * (temp + 273) * 0.00123 - 1.013)).toFixed(2);
+  // Durée estimée selon température
+  let duree = '3–5 jours';
+  if(temp < 18) duree = '6–8 jours';
+  else if(temp < 22) duree = '4–6 jours';
+  else if(temp > 25) duree = '2–3 jours';
+  // Risque surpression
+  let risque = '';
+  let risqueColor = '#8fdb82';
+  if(s > 12){ risque = '⚠ Sucre élevé — risque surpression'; risqueColor='#f08080'; }
+  else if(s > 9){ risque = '△ Surveiller la pression'; risqueColor='#f5c064'; }
+  else { risque = '✓ Carbonatation normale'; }
+  document.getElementById('r-f2').innerHTML=`
+    <div class="result-label">Résultats F2</div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px">
+      <div style="color:#6b8c68">Bouteilles ${bottle}mL : <strong style="color:#e8f0e6">${n}</strong></div>
+      <div style="color:#6b8c68">Sucre total : <strong style="color:#e8f0e6">${(s*vol).toFixed(0)} g</strong></div>
+      <div style="color:#6b8c68">Sucre/bouteille : <strong style="color:#e8f0e6">${(s*bottle/1000).toFixed(1)} g</strong></div>
+      <div style="height:1px;background:rgba(90,180,80,.15);margin:2px 0"></div>
+      <div style="color:#6b8c68">CO₂ estimé : <strong style="color:#8fdb82">${co2_vol} vol</strong></div>
+      <div style="color:#6b8c68">Pression bouteille : <strong style="color:#8fdb82">~${pression} bar</strong></div>
+      <div style="color:#6b8c68">Durée F2 (${temp}°C) : <strong style="color:#e8f0e6">${duree}</strong></div>
+      <div style="margin-top:2px;font-weight:500;color:${risqueColor}">${risque}</div>
+    </div>`;
+}
 function calcPh(){const ph=+document.getElementById('c-ph').value||3.2;document.getElementById('ph-ptr').style.left=Math.max(1,Math.min(97,((ph-2)/5)*100))+'%';let s,c,a;if(ph<2.5){s='Trop acide';c='#f08080';a='Diluer avec thé sucré frais';}else if(ph<=3.5){s='Zone idéale ✓';c='#8fdb82';a='Profil optimal pour embouteillage';}else if(ph<=4.5){s='Acidification en cours';c='#f5c064';a='Normal en début F1, continuer';}else{s='pH trop élevé';c='#f08080';a='Ajouter 10% starter supplémentaire';}document.getElementById('r-ph').innerHTML=`<div class="result-label">pH ${ph}</div><div style="font-size:15px;font-weight:500;color:${c};margin:5px 0 3px">${s}</div><div style="font-size:11px;color:#6b8c68">${a}</div>`;}
 function calcScoby(){const v=+document.getElementById('c-sv').value||50,p=+document.getElementById('c-sp').value||10,g=+document.getElementById('c-sw').value||50;document.getElementById('r-scoby').innerHTML=`<div class="result-label">Quantités</div><div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12px"><div style="color:#6b8c68">Starter : <strong style="color:#e8f0e6">${(v*p/100).toFixed(1)} L</strong></div><div style="color:#6b8c68">SCOBY : <strong style="color:#e8f0e6">${(g*v/1000).toFixed(2)} kg</strong></div><div style="color:#6b8c68">Ratio : <strong style="color:#e8f0e6">${p}% du volume</strong></div></div>`;}
 
