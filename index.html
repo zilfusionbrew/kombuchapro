@@ -855,19 +855,32 @@ async function handleAuth() {
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
 async function logout() {
   if(!confirm("Se déconnecter ?"))return;
-  try { await sb.auth.signOut({ scope: "local" }); } catch(e) {}
+  document.getElementById('user-menu').classList.remove('open');
+  try {
+    await sb.auth.signOut({ scope: "global" });
+  } catch(e) {}
   localStorage.clear();
   sessionStorage.clear();
-  window.location.href = window.location.origin + window.location.pathname;
+  document.cookie.split(";").forEach(c => { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
+  setTimeout(() => { window.location.href = window.location.origin + window.location.pathname; }, 300);
 }
 
 sb.auth.onAuthStateChange(async(event,session)=>{
-  if(session?.user){
+  if(event === 'SIGNED_OUT') {
+    localStorage.clear();
+    sessionStorage.clear();
+    document.getElementById('app').style.display='none';
+    document.getElementById('auth-screen').style.display='none';
+    document.getElementById('onboarding').style.display='none';
+    document.getElementById('landing-page').style.display='block';
+    return;
+  }
+  if(session?.user && event !== 'SIGNED_OUT'){
     currentUser=session.user;
     const isAdmin=session.user.email===ADMIN_EMAIL;
     currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
     await initApp();
-  } else if(!document.getElementById('app').style.display||document.getElementById('app').style.display==='none'){
+  } else if(!session) {
     showLanding();
   }
 });
