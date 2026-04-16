@@ -853,7 +853,13 @@ async function handleAuth() {
 }
 
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
-async function logout() { if(!confirm("Se déconnecter ?"))return; await sb.auth.signOut(); location.reload(); }
+async function logout() {
+  if(!confirm("Se déconnecter ?"))return;
+  try { await sb.auth.signOut({ scope: "local" }); } catch(e) {}
+  localStorage.clear();
+  sessionStorage.clear();
+  window.location.href = window.location.origin + window.location.pathname;
+}
 
 sb.auth.onAuthStateChange(async(event,session)=>{
   if(session?.user){
