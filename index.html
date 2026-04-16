@@ -856,34 +856,29 @@ async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google'
 async function logout() {
   if(!confirm("Se déconnecter ?"))return;
   document.getElementById('user-menu').classList.remove('open');
-  try {
-    await sb.auth.signOut({ scope: "global" });
-  } catch(e) {}
-  localStorage.clear();
-  sessionStorage.clear();
-  document.cookie.split(";").forEach(c => { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
-  setTimeout(() => { window.location.href = window.location.origin + window.location.pathname; }, 300);
+  sessionStorage.setItem('kpro_logged_out','1');
+  try { await sb.auth.signOut({ scope: "global" }); } catch(e) {}
+  Object.keys(localStorage).forEach(k => { if(k.includes('supabase')||k.includes('sb-')||k.includes('kpro')) localStorage.removeItem(k); });
+  window.location.replace(window.location.origin + window.location.pathname + '?logout=1');
 }
 
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event === 'SIGNED_OUT') {
-    localStorage.clear();
-    sessionStorage.clear();
-    document.getElementById('app').style.display='none';
-    document.getElementById('auth-screen').style.display='none';
-    document.getElementById('onboarding').style.display='none';
-    document.getElementById('landing-page').style.display='block';
-    return;
-  }
-  if(session?.user && event !== 'SIGNED_OUT'){
-    currentUser=session.user;
-    const isAdmin=session.user.email===ADMIN_EMAIL;
-    currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
-    await initApp();
-  } else if(!session) {
-    showLanding();
-  }
-});
+// Si retour après logout, afficher landing directement
+if(new URLSearchParams(window.location.search).get('logout')==='1' || sessionStorage.getItem('kpro_logged_out')==='1') {
+  sessionStorage.removeItem('kpro_logged_out');
+  Object.keys(localStorage).forEach(k => { if(k.includes('supabase')||k.includes('sb-')) localStorage.removeItem(k); });
+  window.history.replaceState({},'',window.location.pathname);
+  document.addEventListener('DOMContentLoaded', () => showLanding());
+} else {
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(event === 'SIGNED_OUT' || !session) { showLanding(); return; }
+    if(session?.user){
+      currentUser=session.user;
+      const isAdmin=session.user.email===ADMIN_EMAIL;
+      currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
+      await initApp();
+    }
+  });
+}
 
 async function initApp() {
   showApp();
