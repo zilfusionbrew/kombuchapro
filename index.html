@@ -1045,13 +1045,25 @@ function toggleHelp(id){document.getElementById(id).classList.toggle('open')}
 
 // ── DB ──
 async function getBatches(){const{data}=await sb.from('batches').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});return data||[]}
-async function getMeasures(batchId=null){let q=sb.from('measures').select('*').eq('user_id',currentUser.id);if(batchId)q=q.eq('batch_id',batchId);const{data}=await q.order('date',{ascending:true});return data||[]}
+async function getMeasures(batchId=null){
+  try {
+    let q=sb.from('measures').select('*').eq('user_id',currentUser.id);
+    if(batchId)q=q.eq('batch_id',batchId);
+    const{data,error}=await q.order('date',{ascending:true});
+    if(error)throw error;
+    return data||[];
+  } catch(e) { console.error('getMeasures error:',e); return []; }
+}
 async function getRecipes(){const{data}=await sb.from('recipes').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});return data||[]}
 
 // ── DASHBOARD ──
 async function renderDashboard(){
   document.getElementById('kpi-grid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:#6b8c68"><span class="spinner"></span> Chargement...</div>';
-  const batches=await getBatches();
+  let batches=[];
+  try { batches=await getBatches(); } catch(e) {
+    document.getElementById('kpi-grid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:#f08080">Erreur de connexion. <button class="btn btn-ghost btn-sm" onclick="renderDashboard()">Réessayer</button></div>';
+    return;
+  }
   const active=batches.filter(b=>b.phase!=='Terminé');
   document.getElementById('active-count').textContent=active.length;
   const measures=await getMeasures();
