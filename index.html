@@ -885,29 +885,32 @@ async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google'
 async function logout() {
   if(!confirm("Se déconnecter ?"))return;
   document.getElementById('user-menu').classList.remove('open');
-  sessionStorage.setItem('kpro_logged_out','1');
   try { await sb.auth.signOut({ scope: "global" }); } catch(e) {}
-  Object.keys(localStorage).forEach(k => { if(k.includes('supabase')||k.includes('sb-')||k.includes('kpro')) localStorage.removeItem(k); });
-  window.location.replace(window.location.origin + window.location.pathname + '?logout=1');
+  localStorage.clear();
+  sessionStorage.clear();
+  window.location.href = window.location.href.split('?')[0] + '?lo=' + Date.now();
 }
 
-// Si retour après logout, afficher landing directement
-if(new URLSearchParams(window.location.search).get('logout')==='1' || sessionStorage.getItem('kpro_logged_out')==='1') {
-  sessionStorage.removeItem('kpro_logged_out');
-  Object.keys(localStorage).forEach(k => { if(k.includes('supabase')||k.includes('sb-')) localStorage.removeItem(k); });
-  window.history.replaceState({},'',window.location.pathname);
-  document.addEventListener('DOMContentLoaded', () => showLanding());
-} else {
-  sb.auth.onAuthStateChange(async(event,session)=>{
-    if(event === 'SIGNED_OUT' || !session) { showLanding(); return; }
-    if(session?.user){
-      currentUser=session.user;
-      const isAdmin=session.user.email===ADMIN_EMAIL||session.user.email==='zilfusionbrew@gmail.com';
-      currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
-      await initApp();
+// Auth state
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(event === 'SIGNED_OUT' || !session) { 
+    hide(['app','onboarding','auth-screen']);
+    document.getElementById('landing-page').style.display='block';
+    return; 
+  }
+  if(event === 'INITIAL_SESSION' || event === 'SIGNED_IN'){
+    // Si on vient de se déconnecter (paramètre lo dans URL), ignorer la session
+    if(new URLSearchParams(window.location.search).get('lo')){
+      window.history.replaceState({},'',window.location.pathname);
+      await sb.auth.signOut();
+      return;
     }
-  });
-}
+    currentUser=session.user;
+    const isAdmin=session.user.email===ADMIN_EMAIL;
+    currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
+    await initApp();
+  }
+});
 
 async function initApp() {
   showApp();
