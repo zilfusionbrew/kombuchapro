@@ -882,11 +882,18 @@ async function handleAuth() {
     let result;
     if(authMode==='signup'){
       result=await sb.auth.signUp({email,password,options:{data:{brewery:document.getElementById('auth-brewery').value||'Ma Brasserie'}}});
-      if(!result.error){msg.className='auth-msg success';msg.textContent='Compte créé ! Vérifiez votre email ou connectez-vous directement.';}
+      if(!result.error){msg.className='auth-msg success';msg.textContent='Compte créé ! Connexion en cours...';}
     } else {
       result=await sb.auth.signInWithPassword({email,password});
     }
-    if(result.error){msg.className='auth-msg error';msg.textContent=result.error.message;}
+    if(result.error){
+      msg.className='auth-msg error';msg.textContent=result.error.message;
+    } else if(result.data?.session?.user) {
+      currentUser=result.data.session.user;
+      const isAdmin=currentUser.email===ADMIN_EMAIL;
+      currentPlan=isAdmin?'admin':(currentUser.user_metadata?.plan||'free');
+      await initApp();
+    }
   } catch(e){msg.className='auth-msg error';msg.textContent='Erreur de connexion';}
   document.getElementById('auth-submit').textContent=authMode==='login'?'Se connecter':'Créer mon compte';
 }
