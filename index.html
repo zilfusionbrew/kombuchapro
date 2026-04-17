@@ -883,28 +883,41 @@ async function handleAuth() {
 
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
 async function logout() {
-  document.getElementById('user-menu').classList.remove('open');
-  try { await sb.auth.signOut(); } catch(e) {}
+  try {
+    await sb.auth.signOut();
+  } catch(e) {}
   localStorage.clear();
   sessionStorage.clear();
-  window.location.href = window.location.origin + '/';
+  document.cookie.split(';').forEach(c => {
+    document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+  });
+  window.location.replace(window.location.href.split('?')[0] + '?t=' + Date.now());
 }
 
 // Auth state
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if(!session||event==='SIGNED_OUT'){
-    currentUser=null;currentPlan='free';
-    hide(['app','onboarding','auth-screen']);
-    document.getElementById('landing-page').style.display='block';
-    return;
-  }
-  if(session.user&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){
-    if(currentUser&&currentUser.id===session.user.id)return; // déjà init
-    currentUser=session.user;
-    currentPlan=session.user.email===ADMIN_EMAIL?'admin':(session.user.user_metadata?.plan||'free');
-    await initApp();
-  }
-});
+const _urlParams = new URLSearchParams(window.location.search);
+if(_urlParams.get('t')){
+  window.history.replaceState({},'',window.location.pathname);
+  hide(['app','onboarding','auth-screen']);
+  document.getElementById('landing-page').style.display='block';
+} else {
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(!session||event==='SIGNED_OUT'){
+      currentUser=null;currentPlan='free';
+      hide(['app','onboarding','auth-screen']);
+      document.getElementById('landing-page').style.display='block';
+      return;
+    }
+    if(session.user&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){
+      if(!currentUser){
+        currentUser=session.user;
+        const isAdmin=session.user.email===ADMIN_EMAIL;
+        currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
+        await initApp();
+      }
+    }
+  });
+}
 
 async function initApp() {
   showApp();
