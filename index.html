@@ -577,6 +577,17 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px}
       </div>
       <!-- ASSISTANT -->
       <div class="page" id="page-assistant">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#162019;border:1px solid rgba(90,180,80,.15);border-radius:8px">
+          <span style="font-size:11px;color:#6b8c68;flex-shrink:0">IA choisie :</span>
+          <select id="ai-provider" onchange="saveProvider()" style="background:#0d1a0f;border:1px solid rgba(90,180,80,.2);border-radius:6px;padding:5px 10px;font-size:12px;color:#e8f0e6;flex:1">
+            <option value="groq">🦙 Groq — Llama 3.3 (Gratuit)</option>
+            <option value="claude">✦ Claude — Anthropic (Premium)</option>
+            <option value="gpt4">🤖 GPT-4o — OpenAI (Premium)</option>
+            <option value="gemini">💎 Gemini — Google (Gratuit)</option>
+          </select>
+          <span id="ai-status" style="font-size:10px;color:#8fdb82">●  Actif</span>
+          <span id="ai-counter" style="font-size:10px;color:#6b8c68;margin-left:8px"></span>
+        </div>
         <div class="quick-actions">
           <div class="quick-btn" onclick="askAI('Mon SCOBY a des taches noires, est-ce dangereux ?')">SCOBY malade</div>
           <div class="quick-btn" onclick="askAI('Comment passer de 50L à 500L ?')">Scale-up pro</div>
@@ -809,6 +820,24 @@ let chatInit = false;
 let charts = {};
 
 // ── PLAN LIMITS ──
+// ── AI DAILY LIMITS ──
+function getAiUsageToday() {
+  const today = new Date().toISOString().split('T')[0];
+  const stored = JSON.parse(localStorage.getItem('kpro_ai_usage') || '{}');
+  if (stored.date !== today) return 0;
+  return stored.count || 0;
+}
+function incrementAiUsage() {
+  const today = new Date().toISOString().split('T')[0];
+  const count = getAiUsageToday() + 1;
+  localStorage.setItem('kpro_ai_usage', JSON.stringify({ date: today, count }));
+}
+function getAiDailyLimit() {
+  if (currentPlan === 'admin') return Infinity;
+  if (currentPlan === 'pro' || currentPlan === 'brasserie') return Infinity;
+  return 2; // free = 2 par jour
+}
+
 const LIMITS = {
   free: { batches: 2, ai: 5, pdf: false, charts: false, recipes: false, haccp: false },
   pro: { batches: Infinity, ai: Infinity, pdf: true, charts: true, recipes: true, haccp: true },
@@ -991,7 +1020,7 @@ function nav(id){
   if(id==='charts')initCharts();
   if(id==='calculators'){calcF1();calcF2();calcPh();calcScoby();}
   if(id==='recipes')renderRecipes();
-  if(id==='assistant'&&!chatInit)initChat();
+  if(id==='assistant'){loadProvider();if(!chatInit)initChat();}
 }
 
 // ── UTILS ──
@@ -1303,6 +1332,28 @@ function exportHACCP(){
 // ── ASSISTANT ──
 const SYSTEM=`Tu es KombuchaProAI, expert brasseur kombucha 20 ans d'expérience commerciale. Maîtrise: biologie fermentation (SCOBY, pH, Brix), F1/F2, scaling 10L→10000L, HACCP, réglementation EU/FR, troubleshooting, coûts/marges. Réponds en français. Précis, chiffres concrets, vocabulaire technique. Concis mais complet. Signale clairement les urgences.`;
 
+function saveProvider(){
+  const p=document.getElementById('ai-provider')?.value||'groq';
+  localStorage.setItem('kpro_ai_provider',p);
+  const names={groq:'🦙 Groq actif',claude:'✦ Claude actif',gpt4:'🤖 GPT-4o actif',gemini:'💎 Gemini actif'};
+  const status=document.getElementById('ai-status');
+  if(status)status.textContent='● '+names[p];
+  chatHistory=[];chatInit=false;
+  const wrap=document.getElementById('chat-msgs');if(wrap)wrap.innerHTML='';
+  initChat();
+}
+function loadProvider(){
+  const p=localStorage.getItem('kpro_ai_provider')||'groq';
+  const sel=document.getElementById('ai-provider');
+  if(sel)sel.value=p;
+  const counter=document.getElementById('ai-counter');
+  if(counter){
+    const dailyLimit=getAiDailyLimit();
+    const used=getAiUsageToday();
+    if(dailyLimit===Infinity)counter.textContent='Illimité ∞';
+    else counter.textContent=`${used}/${dailyLimit} questions aujourd'hui`;
+  }
+}
 function initChat(){
   chatInit=true;const wrap=document.getElementById('chat-msgs');wrap.innerHTML='';
   appendMsg('Bonjour ! Expert kombucha IA — du SCOBY malade au scaling industriel. Posez-moi tout. 🍵','bot');
@@ -1310,14 +1361,28 @@ function initChat(){
 
 async function sendChat(){
   const lim=LIMITS[currentPlan]||LIMITS.free;
+  const dailyLimit=getAiDailyLimit();
+  const usedToday=getAiUsageToday();
+  if(usedToday>=dailyLimit){
+    showUpgrade(`Vous avez utilisé vos ${dailyLimit} questions IA gratuites aujourd'hui. Revenez demain ou passez au plan Pro pour un accès illimité.`);
+    return;
+  }
   const inp=document.getElementById('chat-in');const msg=inp.value.trim();if(!msg)return;
   inp.value='';if(!chatInit)initChat();
   appendMsg(msg,'user');chatHistory.push({role:'user',content:msg});
   const tid=appendThinking();
   try{
-    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:SYSTEM,messages:chatHistory})});
+    const provider=document.getElementById('ai-provider')?.value||'groq';
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:SYSTEM,messages:chatHistory,provider})});
     const data=await res.json();removeThinking(tid);
     const reply=data.content?.find(b=>b.type==='text')?.text||'Erreur.';
+    incrementAiUsage();
+    // Update counter display
+    const dailyLimitNow=getAiDailyLimit();
+    const usedNow=getAiUsageToday();
+    const counter=document.getElementById('ai-counter');
+    if(counter&&dailyLimitNow!==Infinity)counter.textContent=`${usedNow}/${dailyLimitNow} questions aujourd'hui`;
+    else if(counter)counter.textContent='Illimité ∞';
     appendMsg(reply,'bot');chatHistory.push({role:'assistant',content:reply});
   }catch(e){removeThinking(tid);appendMsg('Erreur de connexion.','bot');}
 }
