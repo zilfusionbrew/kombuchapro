@@ -885,29 +885,24 @@ async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google'
 async function logout() {
   if(!confirm("Se déconnecter ?"))return;
   document.getElementById('user-menu').classList.remove('open');
-  try { await sb.auth.signOut({ scope: "global" }); } catch(e) {}
+  await sb.auth.signOut();
   localStorage.clear();
   sessionStorage.clear();
-  window.location.href = window.location.href.split('?')[0] + '?lo=' + Date.now();
+  window.location.reload();
 }
 
 // Auth state
 sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event === 'SIGNED_OUT' || !session) { 
+  if(!session||event==='SIGNED_OUT'){
+    currentUser=null;currentPlan='free';
     hide(['app','onboarding','auth-screen']);
     document.getElementById('landing-page').style.display='block';
-    return; 
+    return;
   }
-  if(event === 'INITIAL_SESSION' || event === 'SIGNED_IN'){
-    // Si on vient de se déconnecter (paramètre lo dans URL), ignorer la session
-    if(new URLSearchParams(window.location.search).get('lo')){
-      window.history.replaceState({},'',window.location.pathname);
-      await sb.auth.signOut();
-      return;
-    }
+  if(session.user&&(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')){
+    if(currentUser&&currentUser.id===session.user.id)return; // déjà init
     currentUser=session.user;
-    const isAdmin=session.user.email===ADMIN_EMAIL;
-    currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
+    currentPlan=session.user.email===ADMIN_EMAIL?'admin':(session.user.user_metadata?.plan||'free');
     await initApp();
   }
 });
@@ -928,25 +923,24 @@ async function initApp() {
 function updatePlanUI() {
   const chip=document.getElementById('plan-chip');
   const banner=document.getElementById('plan-banner');
-  const lim=LIMITS[currentPlan]||LIMITS.free;
   chip.className='plan-chip '+currentPlan;
   chip.textContent=currentPlan==='admin'?'⭐ Admin':currentPlan==='brasserie'?'🍵 Brasserie':currentPlan==='pro'?'✓ Pro':'Starter gratuit';
   if(currentPlan==='free'){
     banner.classList.remove('hidden');
-    document.getElementById('plan-banner-text').textContent='Plan Starter · 2 batchs max · 5 questions IA/mois';
+    document.getElementById('plan-banner-text').textContent='Plan Starter · 2 batchs max · 2 questions IA/jour';
   } else { banner.classList.add('hidden'); }
+  // Admin et plans payants = tout débloqué
+  const isUnlocked = currentPlan==='admin'||currentPlan==='pro'||currentPlan==='brasserie';
   const proFeatures=['charts','recipes','haccp','assistant'];
   proFeatures.forEach(f=>{
     const lock=document.getElementById('lock-'+f);
-    if(lock)lock.textContent=lim[f]?'':'🔒';
+    if(lock)lock.textContent=isUnlocked?'':'🔒';
   });
 }
 
 function navPro(page) {
-  const lim=LIMITS[currentPlan]||LIMITS.free;
-  const needsPro={charts:'charts',recipes:'recipes',haccp:'haccp',assistant:'ai'};
-  const key=needsPro[page];
-  if(key&&!lim[key]&&currentPlan!=='admin'){
+  const isUnlocked = currentPlan==='admin'||currentPlan==='pro'||currentPlan==='brasserie';
+  if(!isUnlocked){
     document.getElementById('upgrade-reason').textContent=`La fonctionnalité "${pageTitles[page]}" est réservée au plan Pro.`;
     openModal('upgrade-modal');return;
   }
