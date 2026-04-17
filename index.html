@@ -580,11 +580,10 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px}
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#162019;border:1px solid rgba(90,180,80,.15);border-radius:8px">
           <span style="font-size:11px;color:#6b8c68;flex-shrink:0">IA choisie :</span>
           <select id="ai-provider" onchange="saveProvider()" style="background:#0d1a0f;border:1px solid rgba(90,180,80,.2);border-radius:6px;padding:5px 10px;font-size:12px;color:#e8f0e6;flex:1">
-            <option value="gemini">💎 Gemini — Google (Gratuit)</option>
             <option value="groq">🦙 Groq — Llama 3.3 (Gratuit)</option>
+            <option value="gemini">💎 Gemini — Google (Gratuit)</option>
             <option value="claude">✦ Claude — Anthropic (Premium)</option>
             <option value="gpt4">🤖 GPT-4o — OpenAI (Premium)</option>
-            <option value="gemini">💎 Gemini — Google (Gratuit)</option>
           </select>
           <span id="ai-status" style="font-size:10px;color:#8fdb82">●  Actif</span>
           <span id="ai-counter" style="font-size:10px;color:#6b8c68;margin-left:8px"></span>
@@ -884,12 +883,11 @@ async function handleAuth() {
 
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
 async function logout() {
-  if(!confirm("Se déconnecter ?"))return;
   document.getElementById('user-menu').classList.remove('open');
-  await sb.auth.signOut();
+  try { await sb.auth.signOut(); } catch(e) {}
   localStorage.clear();
   sessionStorage.clear();
-  window.location.reload();
+  window.location.href = window.location.origin + '/';
 }
 
 // Auth state
