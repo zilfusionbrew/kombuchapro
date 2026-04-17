@@ -1048,13 +1048,14 @@ function selectPlan(plan){
 }
 
 async function goToCheckout(){
-  const priceId=selectedPlan==='pro'?PRICE_PRO:PRICE_BRASSERIE;
+  const LINK_PRO = 'https://buy.stripe.com/test_cNi00l1ORcOe2ZYeV45wI00';
+  const LINK_BRASSERIE = 'https://buy.stripe.com/test_cNibJ38df9C20RQ14e5wI01';
+  const link = selectedPlan==='pro' ? LINK_PRO : LINK_BRASSERIE;
+  const email = encodeURIComponent(currentUser?.email||'');
+  const userId = currentUser?.id||'';
   toast('Redirection vers Stripe...');
-  const successUrl=window.location.origin+'?upgrade=success&plan='+selectedPlan;
-  const cancelUrl=window.location.origin;
-  const stripeUrl=`https://buy.stripe.com/test/${selectedPlan==='pro'?'dR6eVFcDv':'bIY'}?prefilled_email=${encodeURIComponent(currentUser?.email||'')}&client_reference_id=${currentUser?.id||''}`;
-  window.open(`https://checkout.stripe.com/pay/${priceId}?prefilled_email=${encodeURIComponent(currentUser?.email||'')}`, '_blank');
   closeModal('upgrade-modal');
+  window.open(`${link}?prefilled_email=${email}&client_reference_id=${userId}`, '_blank');
 }
 
 // ── NAV ──
