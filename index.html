@@ -873,7 +873,7 @@ if(new URLSearchParams(window.location.search).get('logout')==='1' || sessionSto
     if(event === 'SIGNED_OUT' || !session) { showLanding(); return; }
     if(session?.user){
       currentUser=session.user;
-      const isAdmin=session.user.email===ADMIN_EMAIL;
+      const isAdmin=session.user.email===ADMIN_EMAIL||session.user.email==='zilfusionbrew@gmail.com';
       currentPlan=isAdmin?'admin':(session.user.user_metadata?.plan||'free');
       await initApp();
     }
@@ -1315,7 +1315,7 @@ async function sendChat(){
   appendMsg(msg,'user');chatHistory.push({role:'user',content:msg});
   const tid=appendThinking();
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYSTEM,messages:chatHistory})});
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:SYSTEM,messages:chatHistory})});
     const data=await res.json();removeThinking(tid);
     const reply=data.content?.find(b=>b.type==='text')?.text||'Erreur.';
     appendMsg(reply,'bot');chatHistory.push({role:'assistant',content:reply});
