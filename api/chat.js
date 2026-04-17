@@ -11,12 +11,16 @@ export default async function handler(req, res) {
   try {
     if (provider === 'gemini') {
       const msgs = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY
+        },
         body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: msgs })
       });
       const d = await r.json();
-      reply = d.candidates?.[0]?.content?.parts?.[0]?.text || 'Erreur Gemini.';
+      reply = d.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(d);
     } else if (provider === 'claude') {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
