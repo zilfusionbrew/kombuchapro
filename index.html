@@ -799,6 +799,16 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px}
 <div class="toast" id="toast"></div>
 
 <script>
+// ── KILL SERVICE WORKER ──
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister());
+  });
+  caches.keys().then(keys => {
+    keys.forEach(k => caches.delete(k));
+  });
+}
+
 // ── CONFIG ──
 const SUPABASE_URL = 'https://hjazkbfwhmbjqmsgrhlp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqYXprYmZ3aG1ianFtc2dyaGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMDQyNzgsImV4cCI6MjA5MTc4MDI3OH0.WwePliRiIC8pAXaT215tFGQsu2uem5Xd-spGrow19XU';
