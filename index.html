@@ -875,27 +875,45 @@ async function handleAuth() {
   const email=document.getElementById('auth-email').value.trim();
   const password=document.getElementById('auth-password').value;
   const msg=document.getElementById('auth-msg');
+  const btn=document.getElementById('auth-submit');
   msg.className='auth-msg';
-  if(!email||!password){msg.className='auth-msg error';msg.textContent='Email et mot de passe requis';return}
-  document.getElementById('auth-submit').textContent='...';
+  if(!email||!password){msg.className='auth-msg error';msg.textContent='Email et mot de passe requis';return;}
+  btn.textContent='...';btn.disabled=true;
   try {
     let result;
     if(authMode==='signup'){
       result=await sb.auth.signUp({email,password,options:{data:{brewery:document.getElementById('auth-brewery').value||'Ma Brasserie'}}});
-      if(!result.error){msg.className='auth-msg success';msg.textContent='Compte créé ! Connexion en cours...';}
     } else {
       result=await sb.auth.signInWithPassword({email,password});
     }
     if(result.error){
-      msg.className='auth-msg error';msg.textContent=result.error.message;
-    } else if(result.data?.session?.user) {
-      currentUser=result.data.session.user;
-      const isAdmin=currentUser.email===ADMIN_EMAIL;
-      currentPlan=isAdmin?'admin':(currentUser.user_metadata?.plan||'free');
-      await initApp();
+      msg.className='auth-msg error';
+      msg.textContent=result.error.message;
+      btn.textContent=authMode==='login'?'Se connecter':'Créer mon compte';
+      btn.disabled=false;
+      return;
     }
-  } catch(e){msg.className='auth-msg error';msg.textContent='Erreur de connexion';}
-  document.getElementById('auth-submit').textContent=authMode==='login'?'Se connecter':'Créer mon compte';
+    // Succès - charger l'app directement
+    const user=result.data?.user||result.data?.session?.user;
+    if(user){
+      currentUser=user;
+      currentPlan=user.email===ADMIN_EMAIL?'admin':'free';
+      document.getElementById('landing-page').style.display='none';
+      document.getElementById('auth-screen').style.display='none';
+      document.getElementById('onboarding').style.display='none';
+      document.getElementById('app').style.display='flex';
+      document.getElementById('user-avatar').textContent=user.email[0].toUpperCase();
+      document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+      updatePlanUI();
+      renderDashboard();
+      calcF1();calcF2();calcPh();calcScoby();
+    }
+  } catch(e){
+    msg.className='auth-msg error';
+    msg.textContent='Erreur: '+e.message;
+    btn.textContent=authMode==='login'?'Se connecter':'Créer mon compte';
+    btn.disabled=false;
+  }
 }
 
 async function handleGoogle() { await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); }
@@ -941,7 +959,11 @@ if(_urlParams.get('t')){
 }
 
 async function initApp() {
-  showApp();
+  // Force hide all other screens
+  document.getElementById('landing-page').style.display='none';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('onboarding').style.display='none';
+  document.getElementById('app').style.display='flex';
   const u=currentUser;
   document.getElementById('user-avatar').textContent=(u.email||'?')[0].toUpperCase();
   document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
